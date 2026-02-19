@@ -1,56 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import Sidebar from './components/Sidebar';
-import KPICard from './components/KPICard';
-import FinancialChart from './components/FinancialChart';
-import TransactionList from './components/TransactionList';
+import useForecast from './hooks/useForecast';
+import Sidebar from './components/common/Sidebar';
+import KPICard from './components/dashboard/KPICard';
+import BalanceChart from './components/dashboard/BalanceChart';
+import CashFlowChart from './components/dashboard/CashFlowChart';
+import CategoryChart from './components/dashboard/CategoryChart';
+import SimulatorPanel from './components/dashboard/SimulatorPanel';
+import TransactionList from './components/dashboard/TransactionList';
 import { UploadCloud, AlertCircle } from 'lucide-react';
 
 function App() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [uploading, setUploading] = useState(false);
+  const { data, loading, error, uploadFile, updateForecast } = useForecast();
+  const [originalTransactions, setOriginalTransactions] = useState(null);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-
-    setUploading(true);
-    setError(null);
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await axios.post('http://localhost:8000/api/upload', formData);
-      setData(response.data);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to upload file. Please try again.");
-    } finally {
-      setUploading(false);
+    if (file) {
+      setOriginalTransactions(null);
+      const newData = await uploadFile(file);
+      if (newData) {
+          setOriginalTransactions(newData.transactions);
+      }
     }
   };
 
-  const handleIgnoreTransaction = async (id) => {
-    if (!data) return;
+  const handleSimulation = (simulatedTransactions) => {
+    updateForecast(simulatedTransactions);
+  };
 
-    // Optimistic update or wait? Let's wait to ensure consistency
-    setLoading(true);
+  const handleIgnoreTransaction = (id) => {
+     if (!data) return;
+     const newTransactions = data.transactions.filter(t => t.id !== id);
 
-    const newTransactions = data.transactions.filter(t => t.id !== id);
+     if (originalTransactions) {
+         setOriginalTransactions(originalTransactions.filter(t => t.id !== id));
+     }
 
-    try {
-      const response = await axios.post('http://localhost:8000/api/forecast', {
-        transactions: newTransactions
-      });
-      setData(response.data);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to recalculate forecast.");
-    } finally {
-      setLoading(false);
-    }
+     updateForecast(newTransactions);
   };
 
   return (
@@ -77,7 +63,7 @@ function App() {
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg cursor-pointer transition shadow-sm"
             >
               <UploadCloud size={20} />
-              {uploading ? "Uploading..." : "Upload CSV"}
+              {loading ? "Processing..." : "Upload CSV"}
             </label>
           </div>
         </header>
@@ -89,7 +75,7 @@ function App() {
           </div>
         )}
 
-        {!data ? (
+        {!data && !loading && (
           <div className="flex flex-col items-center justify-center h-96 bg-white rounded-xl border-2 border-dashed border-gray-200">
             <div className="bg-blue-50 p-4 rounded-full mb-4">
               <UploadCloud size={40} className="text-blue-500" />
@@ -105,9 +91,12 @@ function App() {
               Select a file to get started
             </label>
           </div>
-        ) : (
-          <div className="animate-in fade-in duration-500">
-            {/* KPI Grid */}
+        )}
+
+        {data && (
+          <div className={`animate-in fade-in duration-500 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+
+            {/* Top Row: KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <KPICard
                 title="Total Liquidity"
@@ -125,39 +114,32 @@ function App() {
                 title="Financial Runway"
                 value={data.forecast.months_until_zero === 999 ? "∞ Infinite" : `${data.forecast.months_until_zero} Months`}
                 subtext={data.forecast.runway_message}
-                type={data.forecast.months_until_zero > 12 ? "positive" : "negative"}
+                type={data.forecast.months_until_zero > 12 || data.forecast.months_until_zero === 999 ? "positive" : "negative"}
               />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Chart Section */}
-              <div className="lg:col-span-2">
-                <FinancialChart data={data.monthly_summary} />
-                <div className="mt-8">
-                    <TransactionList transactions={data.transactions} onIgnore={handleIgnoreTransaction} />
-                </div>
+            {/* Middle Row: Simulator + Balance Chart */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8 h-96">
+              <div className="lg:col-span-4 h-full">
+                 <SimulatorPanel
+                    onSimulate={handleSimulation}
+                    originalTransactions={originalTransactions}
+                 />
               </div>
+              <div className="lg:col-span-8 h-full">
+                <BalanceChart data={data.balance_history} />
+              </div>
+            </div>
 
-              {/* Forecast/Details Sidebar */}
-              <div className="space-y-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h3 className="font-semibold text-gray-800 mb-4">1-Year Projection</h3>
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center pb-3 border-b border-gray-50">
-                            <span className="text-gray-500 text-sm">Projected Balance</span>
-                            <span className={`font-bold ${data.forecast.projected_savings_1yr >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                ${data.forecast.projected_savings_1yr.toLocaleString()}
-                            </span>
-                        </div>
-                        <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700 leading-relaxed">
-                            Based on your current spending habits,
-                            {data.forecast.months_until_zero === 999
-                                ? " you are accumulating wealth efficiently. Keep it up!"
-                                : ` you have approximately ${data.forecast.months_until_zero} months before your balance reaches zero.`}
-                        </div>
-                    </div>
-                </div>
-              </div>
+            {/* Bottom Row: CashFlow + Category */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 mt-12">
+               <CashFlowChart data={data.monthly_summary} />
+               <CategoryChart data={data.spending_by_category} />
+            </div>
+
+            {/* Transactions List */}
+            <div className="grid grid-cols-1 gap-8">
+                <TransactionList transactions={data.transactions} onIgnore={handleIgnoreTransaction} />
             </div>
           </div>
         )}

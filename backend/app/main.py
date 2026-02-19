@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import finance
+from app.api.endpoints import finance
 
 app = FastAPI(title="Sentinel Finance Engine")
 

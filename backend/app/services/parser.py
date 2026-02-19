@@ -1,6 +1,7 @@
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
+import chardet
 
 class DataParser:
     @staticmethod
@@ -14,12 +15,22 @@ class DataParser:
             'Debit': 'amount',
             'Date': 'date',
             'Transaction Date': 'date',
+            'Posted Date': 'date',
             'Description': 'description',
             'Memo': 'description',
-            'Name': 'description'
+            'Name': 'description',
+            'Category': 'category'
         }
 
-        df = df.rename(columns=lambda x: column_map.get(x, x))
+        # Lower case map for robust matching
+        normalized_map = {}
+        for k, v in column_map.items():
+            normalized_map[k] = v
+            normalized_map[k.lower()] = v
+            normalized_map[k.upper()] = v
+            normalized_map[k.title()] = v
+
+        df = df.rename(columns=lambda x: normalized_map.get(x, x))
 
         # Ensure we have required columns
         required = ['date', 'amount']
@@ -28,6 +39,26 @@ class DataParser:
             raise ValueError(f"Missing required columns: {missing}")
 
         return df
+
+    @staticmethod
+    def auto_categorize(description):
+        if not isinstance(description, str):
+            return 'Uncategorized'
+
+        description = description.lower()
+        if any(x in description for x in ['salary', 'deposit', 'transfer', 'payroll']):
+            return 'Income'
+        if any(x in description for x in ['uber', 'lyft', 'taxi', 'gas', 'shell', 'bp', 'chevron']):
+            return 'Transport'
+        if any(x in description for x in ['grocery', 'whole foods', 'trader joes', 'safeway', 'kroger', 'walmart']):
+            return 'Groceries'
+        if any(x in description for x in ['restaurant', 'cafe', 'starbucks', 'mcdonalds', 'burger', 'pizza', 'sushi', 'doordash', 'ubereats']):
+            return 'Dining'
+        if any(x in description for x in ['netflix', 'hulu', 'spotify', 'movie', 'cinema', 'game', 'steam', 'playstation']):
+            return 'Entertainment'
+        if any(x in description for x in ['rent', 'mortgage', 'utility', 'electric', 'water', 'internet', 'comcast', 'verizon']):
+            return 'Housing/Utilities'
+        return 'Uncategorized'
 
     @staticmethod
     def clean_data(df):
@@ -59,12 +90,26 @@ class DataParser:
 
         df['description'] = df['description'].fillna('No Description')
 
+        # Auto Categorize logic
+        if 'category' not in df.columns:
+             df['category'] = df['description'].apply(DataParser.auto_categorize)
+        else:
+             df['category'] = df['category'].fillna('Uncategorized')
+             # If category is 'Uncategorized', try to auto-categorize
+             mask = df['category'] == 'Uncategorized'
+             if mask.any():
+                 df.loc[mask, 'category'] = df.loc[mask, 'description'].apply(DataParser.auto_categorize)
+
         return df
 
     @classmethod
     def parse_csv(cls, file_content: bytes):
         try:
-            df = pd.read_csv(BytesIO(file_content))
+            # Detect encoding
+            result = chardet.detect(file_content)
+            encoding = result['encoding'] or 'utf-8'
+
+            df = pd.read_csv(BytesIO(file_content), encoding=encoding)
             df = cls.normalize_columns(df)
             df = cls.clean_data(df)
 

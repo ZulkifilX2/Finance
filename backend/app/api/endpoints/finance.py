@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.parser import DataParser
 from app.services.analytics import AnalyticsEngine
-from app.models import DashboardResponse, TransactionList
+from app.schemas.finance import DashboardResponse, TransactionList
 import pandas as pd
 
 router = APIRouter()
