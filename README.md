@@ -34,29 +34,51 @@ Sentinel is a full-stack financial analytics tool that goes beyond simple tracki
 *   Python 3.9+
 *   Node.js 16+
 
-### 1. Clone the Repository
+### 1. Download the Code
+You can either clone the repository using Git (recommended for developers) or download it as a ZIP file.
+
+**Option A: Git Clone**
 ```bash
 git clone https://github.com/yourusername/sentinel-finance.git
 cd sentinel-finance
 ```
 
-### 2. Backend Setup
+**Option B: Download ZIP**
+1. Click the green "Code" button on GitHub and select "Download ZIP".
+2. Extract the ZIP file to a folder on your computer.
+3. Open a terminal (Command Prompt or PowerShell on Windows, Terminal on Mac/Linux) and navigate to that folder.
+
+### 2. Backend Setup (Python)
+Open a terminal in the project root directory.
+
 ```bash
 cd backend
+# Create a virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Activate the virtual environment
+# Windows:
+venv\Scripts\activate
+# Mac/Linux:
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Start the server
 uvicorn app.main:app --reload
 ```
-The API will be running at `http://localhost:8000`.
+The API will be running at `http://localhost:8000`. Keep this terminal window open.
 
-### 3. Frontend Setup
+### 3. Frontend Setup (React)
+Open a **new** terminal window (keep the backend running in the first one).
+
 ```bash
-cd frontend
+cd sentinel-finance/frontend  # Adjust path if needed
 npm install
 npm start
 ```
-The app will open at `http://localhost:3000`.
+The app should automatically open in your browser at `http://localhost:3000`.
 
 ### 4. Try it out!
 Use the included `test_transactions.csv` file in the root directory to test the upload and forecast features immediately.
